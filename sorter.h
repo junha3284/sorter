@@ -6,8 +6,12 @@
 #ifndef _SORTER_H_
 #define _SORTER_H_
 
-// Begin/end the background thread which sorts random permutations.
-void Sorter_startSorting (void);
+// Begin the background thread which sorts random permutations.
+// return 0 for success
+// return an error number for error
+int Sorter_startSorting (void);
+
+// End the background thread which sorts random permutations.
 void Sorter_stopSorting (void);
 
 // Get the size of the array currently being sorted.

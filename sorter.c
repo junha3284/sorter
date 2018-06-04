@@ -4,6 +4,8 @@
 #include <time.h>
 #include "sorter.h"
 
+#define DEFAULT_ARRAY_SIZE 100
+
 static int currentArraySize;
 static int nextArraySize;
 static int *currentArray;
@@ -11,13 +13,13 @@ static int *currentArray;
 static long long numSortedArray;
 
 static bool running;
-static bool requested;
+static bool arrayCopyRequested;
 
 static pthread_t sorterThread;
 
 // for now, sizeLock is not necessary. But, I put this because
 // it is critical section
-pthread_mutex_t arrayLock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t currentArrayLock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t arraySizeLock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t numSortedArrayLock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -26,16 +28,57 @@ pthread_cond_t arrayCopyRequestedCond = PTHREAD_COND_INITIALIZER;
 
 
 // Begin/end the background thread which sorts random permutations.
-void Sorter_startSorting (void){
-
+// return 0 for success
+// return an error number for error
+int Sorter_startSorting (void){
+    nextArraySize = DEFAULT_ARRAY_SIZE;
+    numSortedArray = 0;
+    running = true;
+    arrayCopyRequested = false;
+    int threadCreateResult = pthread_create( &thread1, NULL, sortLoop(), NULL);
+    return threadCreateResult;
 }
 
 static void sortLoop(){
-    int *arr;
+   
+    int temp; 
     while (running){
-        pthread_mutex_lock (
-        currentArray = createPermutation(currentArraySize);
 
+        pthread_mutex_lock (&arraySizeLock);
+        {
+            currentArraySize = nextArraySize;
+        }
+        pthread_mutex_unlock (&arraySizeLock);
+
+        pthread_mutex_lock (&curretnArrayLock);
+        {
+            currentArray = createPermutation(currentArraySize);
+        }
+        pthread_mutex_unlock (&currentArrayLock);
+        
+        for (int i = 0; i < currentArraySize-1; i ++){
+            for (int j=0; j < currentArraySize - (i+1); j++){
+                pthread_mutex_lock (&currentArrayLock);
+                {
+                    if (arrayCopyRequested)
+                        pthread_cond_wait (&arrayCopyRequestedCond, &arrayLock);
+         
+                    if (currentArray[j] > currentArray[j+1]){
+                        temp = currentArray[j];
+                        currentArray[j] = currentArray[j+1];
+                        currentArray[j+1] = temp;
+                    }
+                }
+                pthread_mutex_unlock (&currentArrayLock);
+            }     
+        }
+
+        pthread_mutex_lock (&numSortedArrayLock);
+        {
+            numSortedArray++;
+        }
+        pthread_mutex_unlock (&numSortedArrayLock);
+    }
 }
 
 static int* createPermutation (int length){
@@ -56,7 +99,10 @@ static int* createPermutation (int length){
 }
 
 void Sorter_stopSorting (void){
-
+    running = false;
+    pthread_join(&sorterThread); 
+    free(currentArray);
+    currentArray = NULL;
 }
 
 // Set the size the next array to sort (don't change current array)
@@ -93,7 +139,7 @@ int* Sorter_getArrayData (int *length){
 
     int *temp_arr = malloc(temp_currentArrSize*sizeof(int));
 
-    pthread_mutex_lock(&arrayLock);
+    pthread_mutex_lock(&currentArrayLock);
     {    
         // for the case when sorter_getArrayData gets called even before the first random permutation array arise
         if (currentArray == NULL){
@@ -105,7 +151,7 @@ int* Sorter_getArrayData (int *length){
                 temp_arr[i] = currentArray[i];
         }
     }
-    pthread_mutex_unlock(&arrayLock); 
+    pthread_mutex_unlock(&currentArrayLock); 
 
     arrayCopyRequested = false;
     pthread_cond_signal(&arrayCopyRequestedCond);
