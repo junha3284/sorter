@@ -20,16 +20,18 @@ static pthread_t sorterThread;
 
 // for now, sizeLock is not necessary. But, I put this because
 // it is critical section
-pthread_mutex_t currentArrayLock = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t arraySizeLock = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t numSortedArrayLock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t currentArrayLock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t arraySizeLock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t numSortedArrayLock = PTHREAD_MUTEX_INITIALIZER;
 
 // Condition for requesting hardcopy
-pthread_cond_t arrayCopyRequestedCond = PTHREAD_COND_INITIALIZER;
+static pthread_cond_t arrayCopyRequestedCond = PTHREAD_COND_INITIALIZER;
 
 // Function Declarations
 static void* sortLoop(void*);
 static int* createPermutation (int length);
+
+
 
 // Begin/end the background thread which sorts random permutations.
 // return 0 for success
