@@ -27,8 +27,10 @@ pthread_mutex_t numSortedArrayLock = PTHREAD_MUTEX_INITIALIZER;
 // Condition for requesting hardcopy
 pthread_cond_t arrayCopyRequestedCond = PTHREAD_COND_INITIALIZER;
 
+// Function Declarations
 static void* sortLoop(void*);
 static int* createPermutation (int length);
+
 // Begin/end the background thread which sorts random permutations.
 // return 0 for success
 // return an error number for error
@@ -94,7 +96,7 @@ static int* createPermutation (int length){
 
     srand(time(NULL));
     for (int i = 0; i < length; i ++){
-        index = rand() % i;
+        index = rand() % (i+1);
         temp = arr[index];
         arr[index] = arr[i];
         arr[i] = temp;
