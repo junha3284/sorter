@@ -13,7 +13,7 @@ typedef enum{
     GetLength = 4,
     Stop = 5,
     Help = 6 
-} commandType; 
+} CommandType; 
 
 // Begin the background thread which listens user commands
 // return 0 for success
@@ -21,7 +21,7 @@ typedef enum{
 int Network_start (void);
 
 // End the background thread which listens to user commands
-void Network_stop (void);
+void Network_end (void);
 
 // Get the command which is waiting for being processed
 // return commandType
@@ -32,7 +32,7 @@ void Network_stop (void);
 // 4 <=> 'get length'
 // 5 <=> 'stop'
 // set length to be the length of # for command 'get #' 
-commandType checkCommand (int* length);
+CommandType checkCommand (int* length);
 
 // send a requested data to the client who gave command
 // type: GetNum and GetArray 
@@ -50,6 +50,6 @@ commandType checkCommand (int* length);
 // Return the number of characters sent for success.
 // Return -1 for sending error 
 // Return -2 for unsupported command
-int sendRequestedData (commandType type, int *data, const long long *pCount);
+int sendRequestedData (CommandType type, int *data, const long long *pCount);
 
 #endif
