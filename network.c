@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <sys/socket.h>
@@ -17,17 +18,17 @@ typedef struct {
     struct sockaddr_storage senderAddress;
     unsigned int addressSize;
     CommandType type;
+    long requestedNum;
 } Command;
 
 const static struct {
     const char *str;
     CommandType type;
 } mapping_string_command[] = {
-    {"Count", Count},
-    {"Get", Get},
-    {"GetLength", GetLength},
-    {"Stop", Stop},
-    {"Help", Help}
+    {"count", Count},
+    {"get", Get},
+    {"stop", Stop},
+    {"help", Help}
 };
 
 static struct sockaddr_in my_addr; 
@@ -37,11 +38,13 @@ static Command currentCommand;
 
 static void* recvLoop(void*);
 static CommandType stringToCommandMap(const char *string);
-static int replyToSender(char *reply);
+static void replyToSender(char *reply);
 //static int checkUserInput (char *input, int len);
 
 static pthread_t recvThread;
-//static pthread_mutex_t currentCommandLock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t currentCommandLock = PTHREAD_MUTEX_INITIALIZER;
+
+static pthread_cond_t processingCommandCond = PTHREAD_COND_INITIALIZER;
 
 static bool running;
 
@@ -49,6 +52,7 @@ static bool running;
 int Network_start (void)
 {
     currentCommand.type = NoCommand;
+    currentCommand.addressSize = sizeof(currentCommand.senderAddress);
     running = true;
     sockfd = socket(PF_INET, SOCK_DGRAM, 0);
 
@@ -72,13 +76,17 @@ static void* recvLoop (void* empty)
     while(running){
         char Message[MSG_MAX_LEN];
         printf("startReceiving\n");
-        int bytesRx = recvfrom(sockfd,
-                Message,                    // Buffer for message input
-                MSG_MAX_LEN,                // Size of Message Buffer
-                0,                          // Flags
-                (struct sockaddr*) &(currentCommand.senderAddress), // struct sockaddr* from
-                &(currentCommand.addressSize));// fromlen
-
+        int bytesRx;
+        pthread_mutex_lock (&currentCommandLock);
+        {
+            bytesRx = recvfrom(sockfd,
+                    Message,                    // Buffer for message input
+                    MSG_MAX_LEN,                // Size of Message Buffer
+                    0,                          // Flags
+                    (struct sockaddr*) &(currentCommand.senderAddress), // struct sockaddr* from
+                    &(currentCommand.addressSize));// fromlen
+        }
+        pthread_mutex_unlock (&currentCommandLock);
         // to prevent out-of-bounds access
         Message[MSG_MAX_LEN-1] = '\0';
 
@@ -91,17 +99,78 @@ static void* recvLoop (void* empty)
             switch (stringToCommandMap(token)) {
                 case Stop :
                     running = false;
-                    int i = replyToSender("the program got stopped");
-                    if( i <=0 ){
-                        running = true;
-                        printf("error happend while replying, %d, %d\n", i, currentCommand.addressSize);
-                    }
+                    replyToSender("the program got stopped\n");
                     break;
 
-                case Invalid :
+                case Get :
+                    token = strtok(NULL, " ");
+                    if (token == NULL){
+                        replyToSender("there is no enough argument for Get command\n");
+                        break;
+                    }
+                    // Deal with get length command
+                    if (strcmp(token,"length") == 0){
+                        pthread_mutex_lock (&currentCommandLock);
+                        {
+                            currentCommand.type = GetLength; 
+                            pthread_cond_wait (&processingCommandCond, &currentCommandLock);
+                        }
+                        pthread_mutex_unlock (&currentCommandLock);
+                    }
+                    // Deal with get array command
+                    else if (strcmp(token, "array") == 0){
+                        pthread_mutex_lock (&currentCommandLock);
+                        {
+                           currentCommand.type = GetArray; 
+                           pthread_cond_wait (&processingCommandCond, &currentCommandLock);
+                        }
+                        pthread_mutex_unlock (&currentCommandLock);
+                    }
+                    // Deal with get # command
+                    else {
+                        char *endptr = NULL;
+                        long requestedNum = strtol(token, &endptr, 10);
+
+                        // check whether second argument includes non-numeric value or not
+                        if (endptr != NULL){
+                            // second argument include non-numeric value
+                            if (*endptr != '\0'){
+                                replyToSender("Invalid argument for Get command (only numeric value for second argument)\n");
+                                break;
+                            }
+                            // second argument does not include non-numeric value
+                            pthread_mutex_lock (&currentCommandLock);
+                            {
+                                currentCommand.requestedNum = requestedNum; 
+                                currentCommand.type = GetNum;
+                                pthread_cond_wait (&processingCommandCond, &currentCommandLock);
+                            }
+                            pthread_mutex_unlock (&currentCommandLock);
+                            break;
+                        }
+                        printf("unknown error while verifying second argument for Get command\n");
+                    } 
+                    break;
+
+                case Help:
+                    replyToSender("Accepted command examples:\n"
+                            "\tcount -- display number arrays sorted.\n"
+                            "\tget length -- display length of array currently being sorted.\n"
+                            "\tget array -- display the full array being sorted.\n"
+                            "\tget 10 -- display the tenth element of array currently being sorted.\n"
+                            "\tstop -- cause the server program to end.\n");
+                    break;
+                case Count:
+                    pthread_mutex_lock (&currentCommandLock);
+                    {
+                       currentCommand.type = Count; 
+                       pthread_cond_wait (&processingCommandCond, &currentCommandLock);
+                    }
+                    pthread_mutex_unlock (&currentCommandLock);
+
+                case Invalid:
                     printf("Invalid command is received!\n");
                     break;
-
                 default :
                     printf("unknown error while mapping command!\n");
             }
@@ -112,7 +181,26 @@ static void* recvLoop (void* empty)
     return NULL;
 }
 
-static int replyToSender (char *reply)
+// Get the command which is waiting for being processed
+// set num to be # for command 'get #' if current command is get #
+// 0 <=> no command in buffer
+// 1 <=> 'count'
+// 2 <=> 'get #'
+// 3 <=> 'get array'
+// 4 <=> 'get length'
+// 5 <=> 'stop'
+void checkCommand (CommandType *type, int *num)
+{
+    pthread_mutex_lock (&currentCommandLock);
+    {
+        if (currentCommand.type == GetNum)
+            *num = currentCommand.requestedNum;
+        *type = currentCommand.type;
+    }
+    pthread_mutex_unlock (&currentCommandLock);
+}
+
+static void replyToSender (char *reply)
 {
     int bytesRx = sendto(sockfd,
             reply,                          // message the program want to send
@@ -120,7 +208,10 @@ static int replyToSender (char *reply)
             0,                              // Flags
             (struct sockaddr*) &(currentCommand.senderAddress),   // struct sockaddr* from
             currentCommand.addressSize);    // fromlen
-    return bytesRx;
+    if(bytesRx <= 0){
+        running = true;
+        printf("error happend while replying\n");
+    }
 }
 
 static CommandType stringToCommandMap(const char *string)

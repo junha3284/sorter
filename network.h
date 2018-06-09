@@ -8,12 +8,12 @@
 typedef enum{
     NoCommand = 0,
     Count = 1,
-    GetNum = 2,
-    GetArray = 3,
-    GetLength = 4,
-    Stop = 5,
-    Help = 6,
-    Get = 7,
+    Get = 2,
+    GetNum = 3,
+    GetArray = 4,
+    GetLength = 5,
+    Stop = 6,
+    Help = 7,
     Invalid = 8,
 } CommandType; 
 
@@ -26,26 +26,29 @@ int Network_start (void);
 void Network_end (void);
 
 // Get the command which is waiting for being processed
-// return commandType
+// set num to be # for command 'get #' if current command is get #
 // 0 <=> no command in buffer
 // 1 <=> 'count'
 // 2 <=> 'get #'
 // 3 <=> 'get array'
 // 4 <=> 'get length'
 // 5 <=> 'stop'
-// set length to be the length of # for command 'get #' 
-CommandType checkCommand (int* length);
+void checkCommand (CommandType *type, int *num);
 
 // send a requested data to the client who gave command
-// type: GetNum and GetArray 
-//      If argument data is NULL, send the client the error message as following 
+// type: GetNum
+//      If argument data set NULL, send the client the error message as following 
 //           "the requested size is out of range (current size: 'current_array_length')"
-//      otherwise, send the requested array to the client with one or multiple packet
-//      depending on the length of the array 
+//      otherwise, send the requested #_th element to the client
+// type: GetArray
+//      If argument data is NULL, send the client the error message as following
+//          "Inner error happend for command: get array" 
+//      otherwise, send the current array with one or multiple packets
 // type: Count
-//      send the count unless it is NULL. If it is null, send the error message as followingh 
+//      If argument data is NULL, send the client the error message as following
 //          "Inner error happend for command: count"
-// type: Length
+//      otherwise, send the number of arrays which has been sorted until now 
+// type: GetLength
 //      If argument data is NULL, send the client the error message as following
 //          "Inner error happend for command: get length" 
 //      otherwise, send data[0] as length of the current array
