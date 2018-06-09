@@ -12,7 +12,9 @@ typedef enum{
     GetArray = 3,
     GetLength = 4,
     Stop = 5,
-    Help = 6 
+    Help = 6,
+    Get = 7,
+    Invalid = 8,
 } CommandType; 
 
 // Begin the background thread which listens user commands

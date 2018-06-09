@@ -11,12 +11,10 @@
 
 #define MSG_MAX_LEN 64 
 #define MYPORT 12345
-
-static pthread_t recvThread;
-//static pthread_mutex_t currentCommandLock = PTHREAD_MUTEX_INITIALIZER;
+#define MAPPING_LENGTH 5
 
 typedef struct {
-    struct sockaddr *senderAddress;
+    struct sockaddr_storage senderAddress;
     unsigned int addressSize;
     CommandType type;
 } Command;
@@ -24,9 +22,13 @@ typedef struct {
 const static struct {
     const char *str;
     CommandType type;
-} mapping_string_Command[] = {
-    {"get
-
+} mapping_string_command[] = {
+    {"Count", Count},
+    {"Get", Get},
+    {"GetLength", GetLength},
+    {"Stop", Stop},
+    {"Help", Help}
+};
 
 static struct sockaddr_in my_addr; 
 static int sockfd;
@@ -34,12 +36,20 @@ static int sockfd;
 static Command currentCommand;
 
 static void* recvLoop(void*);
-static int checkUserInput (char *input, int len);
+static CommandType stringToCommandMap(const char *string);
+static int replyToSender(char *reply);
+//static int checkUserInput (char *input, int len);
+
+static pthread_t recvThread;
+//static pthread_mutex_t currentCommandLock = PTHREAD_MUTEX_INITIALIZER;
+
+static bool running;
+
 
 int Network_start (void)
 {
     currentCommand.type = NoCommand;
-
+    running = true;
     sockfd = socket(PF_INET, SOCK_DGRAM, 0);
 
     my_addr.sin_family = AF_INET;
@@ -52,30 +62,48 @@ int Network_start (void)
     return threadCreateResult;
 }
 
+void Network_end()
+{
+    pthread_join(recvThread, NULL);
+}
+
 static void* recvLoop (void* empty)
 {
-    while(1){
+    while(running){
         char Message[MSG_MAX_LEN];
         printf("startReceiving\n");
         int bytesRx = recvfrom(sockfd,
                 Message,                    // Buffer for message input
                 MSG_MAX_LEN,                // Size of Message Buffer
                 0,                          // Flags
-                currentCommand.senderAddress, // struct sockaddr* from
-                &currentCommand.addressSize);// fromlen
+                (struct sockaddr*) &(currentCommand.senderAddress), // struct sockaddr* from
+                &(currentCommand.addressSize));// fromlen
 
         // to prevent out-of-bounds access
         Message[MSG_MAX_LEN-1] = '\0';
+
         // to cut out 'enter' character from user input
         Message[bytesRx-1] = '\0';
 
+        char *token = strtok(Message, " ");
+
         if (bytesRx > 0){
-            switch (Message) {
-                case "get num" :
-                    printf("get num is received!\n");
+            switch (stringToCommandMap(token)) {
+                case Stop :
+                    running = false;
+                    int i = replyToSender("the program got stopped");
+                    if( i <=0 ){
+                        running = true;
+                        printf("error happend while replying, %d, %d\n", i, currentCommand.addressSize);
+                    }
                     break;
+
+                case Invalid :
+                    printf("Invalid command is received!\n");
+                    break;
+
                 default :
-                    printf("unknown command is received!\n");
+                    printf("unknown error while mapping command!\n");
             }
         }
         else
@@ -84,7 +112,22 @@ static void* recvLoop (void* empty)
     return NULL;
 }
 
-void Network_end()
+static int replyToSender (char *reply)
 {
-    pthread_join(recvThread, NULL);
+    int bytesRx = sendto(sockfd,
+            reply,                          // message the program want to send
+            strlen(reply)+1,                  // size of message
+            0,                              // Flags
+            (struct sockaddr*) &(currentCommand.senderAddress),   // struct sockaddr* from
+            currentCommand.addressSize);    // fromlen
+    return bytesRx;
+}
+
+static CommandType stringToCommandMap(const char *string)
+{
+    for (int i = 0; i < MAPPING_LENGTH; i++){
+        if (strcmp(mapping_string_command[i].str, string) == 0)
+            return mapping_string_command[i].type;
+    }
+    return Invalid;
 }
