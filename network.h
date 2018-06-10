@@ -26,13 +26,14 @@ int Network_start (void);
 void Network_end (void);
 
 // Get the command which is waiting for being processed
-// set num to be # for command 'get #' if current command is get #
-// 0 <=> no command in buffer
-// 1 <=> 'count'
-// 2 <=> 'get #'
-// 3 <=> 'get array'
-// 4 <=> 'get length'
-// 5 <=> 'stop'
+// set num to be # for command 'get #' if current command is 'get #'
+// @commandType type possible returned value
+//     NoCommand
+//     Count
+//     GetNum
+//     GetArray 
+//     GetLength
+//     Stop
 void checkCommand (CommandType *type, int *num);
 
 // send a requested data to the client who gave command
@@ -45,7 +46,7 @@ void checkCommand (CommandType *type, int *num);
 //          "Inner error happend for command: get array" 
 //      otherwise, send the current array with one or multiple packets
 // type: Count
-//      If argument data is NULL, send the client the error message as following
+//      If argument pCount is NULL, send the client the error message as following
 //          "Inner error happend for command: count"
 //      otherwise, send the number of arrays which has been sorted until now 
 // type: GetLength
@@ -53,8 +54,7 @@ void checkCommand (CommandType *type, int *num);
 //          "Inner error happend for command: get length" 
 //      otherwise, send data[0] as length of the current array
 // Return the number of characters sent for success.
-// Return -1 for sending error 
-// Return -2 for unsupported command
-int sendRequestedData (CommandType type, int *data, const long long *pCount);
+// Return -1 for any error 
+int sendRequestedData (CommandType type, int *data, int dataLength, const long long *pCount);
 
 #endif
