@@ -103,6 +103,7 @@ static void* recvLoop (void* empty)
         if (bytesRx > 0){
             switch (stringToCommandMap(token)) {
                 case Stop :
+                {
                     running = false;
                     int i = replyToSender("the program got stopped\n");
                     if (i <= 0){
@@ -115,8 +116,9 @@ static void* recvLoop (void* empty)
                     }
                     pthread_mutex_unlock (&currentCommandLock);
                     break;
-
+                }
                 case Get :
+                {
                     token = strtok(NULL, " ");
                     if (token == NULL){
                         replyToSender("there is no enough argument for Get command\n");
@@ -165,8 +167,9 @@ static void* recvLoop (void* empty)
                         printf("unknown error while verifying second argument for Get command\n");
                     } 
                     break;
-
+                } 
                 case Help:
+                {
                     replyToSender("Accepted command examples:\n"
                             "\tcount -- display number arrays sorted.\n"
                             "\tget length -- display length of array currently being sorted.\n"
@@ -174,17 +177,22 @@ static void* recvLoop (void* empty)
                             "\tget 10 -- display the tenth element of array currently being sorted.\n"
                             "\tstop -- cause the server program to end.\n");
                     break;
+                }
                 case Count:
+                {
                     pthread_mutex_lock (&currentCommandLock);
                     {
                        currentCommand.type = Count; 
                        pthread_cond_wait (&processingCommandCond, &currentCommandLock);
                     }
                     pthread_mutex_unlock (&currentCommandLock);
-
+                    break;
+                }
                 case Invalid:
+                {
                     printf("Invalid command is received!\n");
                     break;
+                }
                 default :
                     printf("unknown error while mapping command!\n");
             }
@@ -233,6 +241,7 @@ int Network_sendRequestedData (CommandType type, int *data, int dataLength, cons
 
     switch (type){
         case GetArray:
+        {
            if (data == NULL){
                replyToSender("Inner error happend for command: get array\n"); 
                pthread_cond_signal(&processingCommandCond);
@@ -251,16 +260,18 @@ int Network_sendRequestedData (CommandType type, int *data, int dataLength, cons
            }
            sprintf(&Message[index], "\n");
            break;
-
+        }
         case GetNum:
+        {
            if (data == NULL){
                pthread_cond_signal(&processingCommandCond);
                return replyToSender("the requested size is out of range\n"); 
            }
            snprintf(Message, REPLYING_MSG_MAX_LEN, "Value %d: %d\n", requestedNum, data[requestedNum-1]);
            break;
-
+        }
         case Count:
+        {
            if (pCount == NULL){
                replyToSender("Inner error happend for command: count\n");
                pthread_cond_signal(&processingCommandCond);
@@ -268,8 +279,9 @@ int Network_sendRequestedData (CommandType type, int *data, int dataLength, cons
            }
            snprintf(Message, REPLYING_MSG_MAX_LEN, "Number of arrays sorted = %lld\n", *pCount);
            break;
-
+        }
         case GetLength:
+        {
            if (data == NULL){
                replyToSender("Inner error happend for command: get length\n"); 
                pthread_cond_signal(&processingCommandCond);
@@ -277,7 +289,7 @@ int Network_sendRequestedData (CommandType type, int *data, int dataLength, cons
            }
            snprintf(Message, REPLYING_MSG_MAX_LEN, "Current array length = %d\n", data[0]);
            break;
-
+        }
         default:
            printf("Unkown type error happend while sendingRequestedData\n");
            return -1;

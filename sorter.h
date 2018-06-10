@@ -9,10 +9,10 @@
 // Begin the background thread which sorts random permutations.
 // return 0 for success
 // return an error number for error
-int Sorter_startSorting (void);
+int Sorter_start (void);
 
 // End the background thread which sorts random permutations.
-void Sorter_stopSorting (void);
+void Sorter_end (void);
 
 // Get the size of the array currently being sorted.
 // Set the size the next array to sort (don't change current array)

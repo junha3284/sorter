@@ -5,7 +5,7 @@
 #include "network.h"
 
 int main(){
-    int i = Sorter_startSorting();
+    int i = Sorter_start();
     printf("test_sorter %d\n", i);
     sleep(1);
     int n;
@@ -31,6 +31,6 @@ int main(){
     free(arr);
     arr = NULL;
 
-    Sorter_stopSorting();
+    Sorter_end();
     return 0;
 }

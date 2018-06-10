@@ -34,7 +34,7 @@ static int* createPermutation (int length);
 // Begin/end the background thread which sorts random permutations.
 // return 0 for success
 // return an error number for error
-int Sorter_startSorting (void){
+int Sorter_start (void){
     nextArraySize = DEFAULT_ARRAY_SIZE;
     numSortedArray = 0;
     running = true;
@@ -104,7 +104,7 @@ static int* createPermutation (int length){
     return arr;
 }
 
-void Sorter_stopSorting (void){
+void Sorter_end (void){
     running = false;
     pthread_join(sorterThread, NULL); 
     free(currentArray);
