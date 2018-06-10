@@ -31,8 +31,6 @@ static pthread_cond_t arrayCopyRequestedCond = PTHREAD_COND_INITIALIZER;
 static void* sortLoop(void*);
 static int* createPermutation (int length);
 
-
-
 // Begin/end the background thread which sorts random permutations.
 // return 0 for success
 // return an error number for error

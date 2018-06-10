@@ -1,7 +1,15 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 #include <stdbool.h>
 #include "network.h"
+
+int* createArray (int length){
+    int *arr = malloc(length*sizeof(int));
+    for (int i = 0; i < length; i ++)
+        arr[i] = i+1;
+    return arr;
+}
 
 int main(){
     printf("test is working\n");
@@ -37,8 +45,9 @@ int main(){
                 }
                 case GetArray:
                 {
-                    int arr[3] = {1,2,3};
-                    Network_sendRequestedData (currentType, arr, 3, NULL);
+                    //int *arr = createArray(2103);
+                    //Network_sendRequestedData (currentType, arr, 2103, NULL);
+                    Network_sendRequestedData (currentType, NULL, 2103, NULL);
                 }
                 default:
                 {

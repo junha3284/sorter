@@ -14,6 +14,8 @@
 #define REPLYING_MSG_MAX_LEN 1024
 #define MYPORT 12345
 #define MAPPING_LENGTH 4
+#define BENCHMARK_PACKET_SIZE 1015 // for 'get array' command, while filling in Message for replying,
+                                   // If Message for replying is larger than 1015 bytes, send it and create empty to fill left numbers in array. 
 
 typedef struct {
     struct sockaddr_storage senderAddress;
@@ -102,7 +104,11 @@ static void* recvLoop (void* empty)
             switch (stringToCommandMap(token)) {
                 case Stop :
                     running = false;
-                    replyToSender("the program got stopped\n");
+                    int i = replyToSender("the program got stopped\n");
+                    if (i <= 0){
+                        running = true;
+                        break;
+                    }
                     pthread_mutex_lock (&currentCommandLock);
                     {
                         currentCommand.type = Stop;
@@ -232,7 +238,18 @@ int Network_sendRequestedData (CommandType type, int *data, int dataLength, cons
                pthread_cond_signal(&processingCommandCond);
                return -1; 
            }
-           replyToSender("now it is being implemented\n");
+           int index = 0;
+           for (int i = 0; i < dataLength; i++){
+               if (i % 10 == 9)
+                   index += sprintf(&Message[index], "%d,\n", data[i]); 
+               else
+                   index += sprintf(&Message[index], "%d, ", data[i]);
+               if (index > BENCHMARK_PACKET_SIZE){
+                   replyToSender(Message);
+                   index = 0;
+               }
+           }
+           sprintf(&Message[index], "\n");
            break;
 
         case GetNum:
@@ -271,6 +288,9 @@ int Network_sendRequestedData (CommandType type, int *data, int dataLength, cons
 
 static int replyToSender (char *reply)
 {
+    if (reply == NULL || reply[0] == '\0')
+        return 0;
+
     int bytesRx = sendto(sockfd,
             reply,                          // message the program want to send
             strlen(reply)+1,                  // size of message
@@ -279,7 +299,6 @@ static int replyToSender (char *reply)
             currentCommand.addressSize);    // fromlen
 
     if (bytesRx <= 0){
-        running = true;
         printf("error happend while replying\n");
     }
     return bytesRx;
