@@ -4,6 +4,8 @@ CROSS_COMPILE = arm-linux-gnueabihf-
 CC_C = $(CROSS_COMPILE)gcc
 CFLAGS = -Wall -g -std=c99 -D _POSIX_C_SOURCE=200809L -Werror -pthread
 
+all: app done
+
 test_UI_target:
 	$(CC_C) $(CFLAGS) sorter.c network.c userinterface.c test_UI.c -o $(OUTDIR)/test_UI 
 	@echo "Finished building test_UI for host"
@@ -20,12 +22,11 @@ test_network_target:
 	$(CC_C) $(CFLAGS) network.c test_network.c -o $(OUTDIR)/test_network
 	@echo "Finished building test_network for target"
 
-all: app done
-
 app:
-	$(CC_C) $(CFLAGS) sorter.c main.c network.c -o $(OUTDIR)/$(OUTFILE)
+	$(CC_C) $(CFLAGS) sorter.c network.c userinterface.c main.c -o $(OUTDIR)/$(OUTFILE)
 
 done:
 	@echo "Finished building application."
+
 clean:
 	rm $(OUTDIR)/$(OUTFILE)

@@ -7,15 +7,20 @@
 #include "sorter.h"
 
 #define POT_FILE_VOLTAGE0 "/sys/bus/iio/devices/iio:device0/in_voltage0_raw"
+#define A2D_PWL_INTERVAL 500
 
 static pthread_t updatingThread;
 static bool running;
 static int totalNumSortedArray;
 
+// (index of array * 500) is corresponding A2D Reading
+// the value in that index is array size
+static const int dataPoints[10] = {1, 20, 60, 120, 250, 300, 500, 800, 1200, 5700};
+
 // Update the array size every 1 seconds depending on POT
 //        the 14 segments displays to indicate how many arrays got sorted during last 1 second 
 static void* update (void*);
-static int getVoltage0Reading();
+static int getVoltage0Reading(void);
 
 int UI_start (void)
 {
@@ -28,8 +33,15 @@ int UI_start (void)
 static void* update (void* empty)
 {
     while (running){
-        int voltageForNow = getVoltage0Reading(); 
-        Sorter_setArraySize (voltageForNow);
+        float voltageForNow = ((float) getVoltage0Reading()) / A2D_PWL_INTERVAL; 
+        
+        int index = voltageForNow;
+        float index_float_point = voltageForNow - index;
+
+        int size = dataPoints[index]
+            +  (index_float_point * (dataPoints[index+1] - dataPoints[index]));
+
+        Sorter_setArraySize (size);
         sleep(1);
     }
     return NULL;

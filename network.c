@@ -190,7 +190,7 @@ static void* recvLoop (void* empty)
                 }
                 case Invalid:
                 {
-                    printf("Invalid command is received!\n");
+                    replyToSender("Invalid command is received!\n");
                     break;
                 }
                 default :
