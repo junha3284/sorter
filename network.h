@@ -34,7 +34,7 @@ void Network_end (void);
 //     GetArray 
 //     GetLength
 //     Stop
-void checkCommand (CommandType *type, int *num);
+void Network_checkCommand (CommandType *type, int *num);
 
 // send a requested data to the client who gave command
 // type: GetNum
@@ -55,6 +55,6 @@ void checkCommand (CommandType *type, int *num);
 //      otherwise, send data[0] as length of the current array
 // Return the number of characters sent for success.
 // Return -1 for any error 
-int sendRequestedData (CommandType type, int *data, int dataLength, const long long *pCount);
+int Network_sendRequestedData (CommandType type, int *data, int dataLength, const long long *pCount);
 
 #endif

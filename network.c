@@ -13,7 +13,7 @@
 #define RECEIVING_MSG_MAX_LEN 64 
 #define REPLYING_MSG_MAX_LEN 1024
 #define MYPORT 12345
-#define MAPPING_LENGTH 5
+#define MAPPING_LENGTH 4
 
 typedef struct {
     struct sockaddr_storage senderAddress;
@@ -75,9 +75,9 @@ void Network_end()
 
 static void* recvLoop (void* empty)
 {
+    printf("start receviving command\n");
     while(running){
         char Message[RECEIVING_MSG_MAX_LEN];
-        printf("startReceiving\n");
         int bytesRx;
         pthread_mutex_lock (&currentCommandLock);
         {
@@ -103,6 +103,11 @@ static void* recvLoop (void* empty)
                 case Stop :
                     running = false;
                     replyToSender("the program got stopped\n");
+                    pthread_mutex_lock (&currentCommandLock);
+                    {
+                        currentCommand.type = Stop;
+                    }
+                    pthread_mutex_unlock (&currentCommandLock);
                     break;
 
                 case Get :
@@ -181,6 +186,7 @@ static void* recvLoop (void* empty)
         else
             printf("error for recvfrom\n");
     }
+    printf("stop receiving command\n");
     return NULL;
 }
 
@@ -193,7 +199,7 @@ static void* recvLoop (void* empty)
 //     GetArray 
 //     GetLength
 //     Stop
-void checkCommand (CommandType *type, int *num)
+void Network_checkCommand (CommandType *type, int *num)
 {
     pthread_mutex_lock (&currentCommandLock);
     {
@@ -204,7 +210,7 @@ void checkCommand (CommandType *type, int *num)
     pthread_mutex_unlock (&currentCommandLock);
 }
 
-int sendRequestedData (CommandType type, int *data, int dataLength, const long long *pCount)
+int Network_sendRequestedData (CommandType type, int *data, int dataLength, const long long *pCount)
 {
     int requestedNum;
 
@@ -226,7 +232,7 @@ int sendRequestedData (CommandType type, int *data, int dataLength, const long l
                pthread_cond_signal(&processingCommandCond);
                return -1; 
            }
-           return replyToSender("now it is being implemented\n");
+           replyToSender("now it is being implemented\n");
            break;
 
         case GetNum:
@@ -234,7 +240,7 @@ int sendRequestedData (CommandType type, int *data, int dataLength, const long l
                pthread_cond_signal(&processingCommandCond);
                return replyToSender("the requested size is out of range\n"); 
            }
-           snprintf(Message, REPLYING_MSG_MAX_LEN, "Value %d: %d", requestedNum, data[requestedNum-1]);
+           snprintf(Message, REPLYING_MSG_MAX_LEN, "Value %d: %d\n", requestedNum, data[requestedNum-1]);
            break;
 
         case Count:
@@ -252,7 +258,7 @@ int sendRequestedData (CommandType type, int *data, int dataLength, const long l
                pthread_cond_signal(&processingCommandCond);
                return -1; 
            }
-           snprintf(Message, REPLYING_MSG_MAX_LEN, "Current array length = %d", data[0]);
+           snprintf(Message, REPLYING_MSG_MAX_LEN, "Current array length = %d\n", data[0]);
            break;
 
         default:
@@ -281,6 +287,8 @@ static int replyToSender (char *reply)
 
 static CommandType stringToCommandMap (const char *string)
 {
+    if (string == NULL)
+        return Invalid;
     for (int i = 0; i < MAPPING_LENGTH; i++){
         if (strcmp(mapping_string_command[i].str, string) == 0)
             return mapping_string_command[i].type;
