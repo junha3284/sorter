@@ -33,31 +33,31 @@
 #define REG_OUTA 0x14
 #define REG_OUTB 0x15
 
-#define REG_0_OUTA 0xA1
-#define REG_0_OUTB 0x86
-#define REG_1_OUTA 0x04
-#define REG_1_OUTB 0x20
-#define REG_2_OUTA 0x31
-#define REG_2_OUTB 0x0E
-#define REG_3_OUTA 0xB0
-#define REG_3_OUTB 0x0E
-#define REG_4_OUTA 0x14
-#define REG_4_OUTB 0xA8
-#define REG_5_OUTA 0xB0
-#define REG_5_OUTB 0x8C
-#define REG_6_OUTA 0xB1
-#define REG_6_OUTB 0x8C
-#define REG_7_OUTA 0x80
-#define REG_7_OUTB 0x06
-#define REG_8_OUTA 0xB1
-#define REG_8_OUTB 0x8E
-#define REG_9_OUTA 0x90
-#define REG_9_OUTB 0x8E
+struct {
+    unsigned char OUTA;
+    unsigned char OUTB;
+} digits[10] = {
+    { 0xA1, 0x86 },
+    { 0x04, 0x20 },
+    { 0x31, 0x0E },
+    { 0xB0, 0x0E },
+    { 0x14, 0xA8 },
+    { 0xB0, 0x8C },
+    { 0xB1, 0x8C },
+    { 0x80, 0x06 },
+    { 0xB1, 0x8E },
+    { 0x90, 0x8E }
+};
 
 
 static pthread_t updatingThread;
+static pthread_t displayThread;
+
+static int leftDigit;
+static int rightDigit;
+
 static bool running;
-static int totalNumSortedArray;
+static long long totalNumSortedArray;
 static int i2cFileDesc;
 
 // (index of array * 500) is corresponding A2D Reading
@@ -66,16 +66,20 @@ static const int dataPoints[10] = {1, 20, 60, 120, 250, 300, 500, 800, 1200, 570
 
 // Update the array size every 1 seconds depending on POT
 //        the 14 segments displays to indicate how many arrays got sorted during last 1 second 
-static void* update (void*);
+static void* updateLoop (void*);
+static void* displayLoop (void*);
 
 static int getVoltage0Reading(void);
 static int GPIO_export(int gpio_num);
+static int GPIO_set_direction_out (void);
 static int initI2cBus(char* bus, int address);
 static int writeI2cReg(int i2cFileDesc, unsigned char regAddr, unsigned char value);
 
 int UI_start (void)
 {
-    if ( GPIO_export(GPIO_LEFT_DIGIT_NUM) || GPIO_export(GPIO_RIGHT_DIGIT_NUM) ) 
+    if ( GPIO_export(GPIO_LEFT_DIGIT_NUM)
+            || GPIO_export(GPIO_RIGHT_DIGIT_NUM)
+            || GPIO_set_direction_out()) 
         return 1;
 
     i2cFileDesc = initI2cBus(I2CDRV_LINUX_BUS1, I2C_DEVICE_ADDRESS);
@@ -87,10 +91,15 @@ int UI_start (void)
 
     running = true;
     totalNumSortedArray = 0;
-    int threadCreateResult = pthread_create(&updatingThread, NULL, update, NULL); 
+    leftDigit = 0;
+    rightDigit = 0;
+
+    int threadCreateResult = pthread_create(&updatingThread, NULL, updateLoop, NULL)
+                                || pthread_create(&displayThread, NULL, displayLoop, NULL);
     return threadCreateResult;
 }
-static void* update (void* empty)
+
+static void* updateLoop (void* empty)
 {
     while (running){
         float voltageForNow = ((float) getVoltage0Reading()) / A2D_PWL_INTERVAL; 
@@ -101,7 +110,16 @@ static void* update (void* empty)
         int size = dataPoints[index]
             +  (index_float_point * (dataPoints[index+1] - dataPoints[index]));
 
-        Sorter_setArraySize (size);
+        Sorter_setArraySize(size);
+
+        int temp = totalNumSortedArray;
+        totalNumSortedArray = Sorter_getNumberArraysSorted();
+        int numSortedArrayForLastSec = totalNumSortedArray - temp;
+
+        if (numSortedArrayForLastSec >= 100)
+            numSortedArrayForLastSec = 99;    
+        leftDigit = numSortedArrayForLastSec / 10;
+        rightDigit = numSortedArrayForLastSec % 10;
         sleep(1);
     }
     return NULL;
@@ -111,6 +129,80 @@ void UI_end (void)
 {
    running = false;
    pthread_join(updatingThread, NULL); 
+   pthread_join(displayThread, NULL);
+}
+
+static void* displayLoop (void* empty)
+{
+    FILE *leftDigitGPIO = fopen(GPIO_61_VALUE, "w");
+    FILE *rightDigitGPIO = fopen(GPIO_44_VALUE, "w");
+
+    // If an error happens, turn on every segment and finish thread
+    if (leftDigitGPIO == NULL || rightDigitGPIO == NULL){
+        writeI2cReg(i2cFileDesc, REG_OUTA, 0xFF); 
+        writeI2cReg(i2cFileDesc, REG_OUTB, 0xFF); 
+        return NULL;
+    }
+
+    // turn off both displays
+    int charWrittenRight = fprintf(rightDigitGPIO, "%d", 0);
+    int charWrittenLeft = fprintf(leftDigitGPIO, "%d", 0);
+    rewind(rightDigitGPIO);
+    rewind(leftDigitGPIO);
+
+    if (charWrittenRight <= 0 || charWrittenLeft <= 0){
+        writeI2cReg(i2cFileDesc, REG_OUTA, 0xFF); 
+        writeI2cReg(i2cFileDesc, REG_OUTB, 0xFF); 
+        return NULL;
+    }
+
+    long seconds = 0;
+    long nanoseconds = 5000000;
+    struct timespec reqDelay = {seconds, nanoseconds};
+
+
+    while (running){
+        // turn off both displays
+        fprintf(rightDigitGPIO, "%d", 0);
+        fprintf(leftDigitGPIO, "%d", 0);
+        rewind(rightDigitGPIO);
+        rewind(leftDigitGPIO);
+
+        // drive I2C GPIO extener to dispaly pattern for left digit.
+        writeI2cReg(i2cFileDesc, REG_OUTA, digits[leftDigit].OUTA); 
+        writeI2cReg(i2cFileDesc, REG_OUTB, digits[leftDigit].OUTB); 
+
+        // turn on left digit
+        fprintf(leftDigitGPIO, "%d", 1);
+        rewind(leftDigitGPIO);
+        
+        // wait for 5ms
+        nanosleep(&reqDelay, (struct timespec *) NULL);
+
+        // turn off both displays
+        fprintf(rightDigitGPIO, "%d", 0);
+        fprintf(leftDigitGPIO, "%d", 0);
+        rewind(rightDigitGPIO);
+        rewind(leftDigitGPIO);
+
+        // drive I2C GPIO extener to dispaly pattern for left digit.
+        writeI2cReg(i2cFileDesc, REG_OUTA, digits[rightDigit].OUTA); 
+        writeI2cReg(i2cFileDesc, REG_OUTB, digits[rightDigit].OUTB); 
+
+        // turn on left digit
+        fprintf(rightDigitGPIO, "%d", 1);
+        rewind(rightDigitGPIO);
+
+        // wait for 5ms
+        nanosleep(&reqDelay, (struct timespec *) NULL);
+    }
+
+    // turn off both displays when the program ends
+    fprintf(rightDigitGPIO, "%d", 0);
+    fprintf(leftDigitGPIO, "%d", 0);
+    rewind(rightDigitGPIO);
+    rewind(leftDigitGPIO);
+    return NULL;
 }
 
 static int GPIO_export(int gpio_num)
@@ -120,12 +212,31 @@ static int GPIO_export(int gpio_num)
     if (export == NULL)
         return 1; 
 
-    int charWritten = fprintf(export, "%d", 44);
+    int charWritten = fprintf(export, "%d", gpio_num);
     if (charWritten <= 0)
         return 1;
 
     fclose(export);
     return 0; 
+}
+
+// set GPIOs direction to 1
+static int GPIO_set_direction_out (void)
+{
+    FILE *direction_61 = fopen(GPIO_61_DIRECTION, "w");
+    FILE *direction_44 = fopen(GPIO_44_DIRECTION, "w");
+    if (direction_61 == NULL || direction_44 == NULL)
+        return 1;
+    int charWritten = fprintf(direction_61, "%d", 1);
+    if (charWritten <= 0)
+        return 1;
+
+    charWritten = fprintf(direction_44, "%d", 1);
+    if (charWritten <= 0)
+        return 1;
+    fclose(direction_61);
+    fclose(direction_44);
+    return 0;
 }
 
 static int getVoltage0Reading()
