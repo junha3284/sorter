@@ -259,6 +259,8 @@ int Network_sendRequestedData (CommandType type, int *data, int dataLength, cons
                }
            }
            sprintf(&Message[index], "\n");
+           free(data);
+           data = NULL;
            break;
         }
         case GetNum:
@@ -268,6 +270,8 @@ int Network_sendRequestedData (CommandType type, int *data, int dataLength, cons
                return replyToSender("the requested size is out of range\n"); 
            }
            snprintf(Message, REPLYING_MSG_MAX_LEN, "Value %d: %d\n", requestedNum, data[requestedNum-1]);
+           free(data);
+           data = NULL;
            break;
         }
         case Count:

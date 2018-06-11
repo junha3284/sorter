@@ -82,6 +82,8 @@ static void* sortLoop(void* empty){
             numSortedArray++;
         }
         pthread_mutex_unlock (&numSortedArrayLock);
+        free (currentArray);
+        currentArray = NULL;
     }
     return NULL;
 }

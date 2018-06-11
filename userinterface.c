@@ -130,6 +130,7 @@ void UI_end (void)
    running = false;
    pthread_join(updatingThread, NULL); 
    pthread_join(displayThread, NULL);
+   close(i2cFileDesc);
 }
 
 static void* displayLoop (void* empty)
