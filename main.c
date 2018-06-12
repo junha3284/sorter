@@ -9,7 +9,10 @@
 int main(){
 
     bool flag = true;
-    int i = Network_start () || Sorter_start () || UI_start ();
+    int i = Network_start () 
+            || Sorter_start () 
+            || UI_start ();
+
     if (i == 0) {
         printf ("success!\n");
 

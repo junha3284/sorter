@@ -33,6 +33,7 @@
 #define REG_OUTA 0x14
 #define REG_OUTB 0x15
 
+// digits[#] => reg values to display # in 14 segment display
 struct {
     unsigned char OUTA;
     unsigned char OUTB;
@@ -64,29 +65,35 @@ static int i2cFileDesc;
 // the value in that index is array size
 static const int dataPoints[10] = {1, 20, 60, 120, 250, 300, 500, 800, 1200, 5700};
 
+// Function declarations
 // Update the array size every 1 seconds depending on POT
 //        the 14 segments displays to indicate how many arrays got sorted during last 1 second 
 static void* updateLoop (void*);
+// Update the 14 segment display according to leftDigit and rightDigit
 static void* displayLoop (void*);
 
 static int getVoltage0Reading(void);
-static int GPIO_export(int gpio_num);
+static int GPIO_export (int gpio_num);
 static int GPIO_set_direction_out (void);
-static int initI2cBus(char* bus, int address);
-static int writeI2cReg(int i2cFileDesc, unsigned char regAddr, unsigned char value);
+static int initI2cBus (char* bus, int address);
+static int writeI2cReg (int i2cFileDesc, unsigned char regAddr, unsigned char value);
 
+// return 0 for success
+// return an error number for error
 int UI_start (void)
 {
-    if ( GPIO_export(GPIO_LEFT_DIGIT_NUM)
-            || GPIO_export(GPIO_RIGHT_DIGIT_NUM)
-            || GPIO_set_direction_out()) 
+    if ( GPIO_export (GPIO_LEFT_DIGIT_NUM)
+            || GPIO_export (GPIO_RIGHT_DIGIT_NUM)
+            || GPIO_set_direction_out ()) 
         return 1;
 
-    i2cFileDesc = initI2cBus(I2CDRV_LINUX_BUS1, I2C_DEVICE_ADDRESS);
+    i2cFileDesc = initI2cBus (I2CDRV_LINUX_BUS1, I2C_DEVICE_ADDRESS);
     if (i2cFileDesc == -1)
         return 1;
 
-    if ( writeI2cReg(i2cFileDesc, REG_DIRA, 0x00) || writeI2cReg(i2cFileDesc, REG_DIRB, 0x00) )
+    // set the GPIO extender write mode
+    if (writeI2cReg(i2cFileDesc, REG_DIRA, 0x00)
+            || writeI2cReg(i2cFileDesc, REG_DIRB, 0x00))
         return 1;
 
     running = true;
@@ -99,9 +106,13 @@ int UI_start (void)
     return threadCreateResult;
 }
 
+// Update the array size every 1 seconds depending on POT
+//        the 14 segments displays to indicate how many arrays got sorted during last 1 second 
 static void* updateLoop (void* empty)
 {
     while (running){
+
+        // Linear Interpolate the array size according to POT value
         float voltageForNow = ((float) getVoltage0Reading()) / A2D_PWL_INTERVAL; 
         
         int index = voltageForNow;
@@ -109,7 +120,6 @@ static void* updateLoop (void* empty)
 
         int size = dataPoints[index]
             +  (index_float_point * (dataPoints[index+1] - dataPoints[index]));
-
         Sorter_setArraySize(size);
 
         int temp = totalNumSortedArray;
@@ -118,13 +128,16 @@ static void* updateLoop (void* empty)
 
         if (numSortedArrayForLastSec >= 100)
             numSortedArrayForLastSec = 99;    
+
         leftDigit = numSortedArrayForLastSec / 10;
         rightDigit = numSortedArrayForLastSec % 10;
         sleep(1);
     }
+
     return NULL;
 }
 
+// End the background thread
 void UI_end (void)
 {
    running = false;
@@ -133,27 +146,28 @@ void UI_end (void)
    close(i2cFileDesc);
 }
 
+// Update the 14 segment display according to leftDigit and rightDigit
 static void* displayLoop (void* empty)
 {
-    FILE *leftDigitGPIO = fopen(GPIO_61_VALUE, "w");
-    FILE *rightDigitGPIO = fopen(GPIO_44_VALUE, "w");
+    FILE *leftDigitGPIO = fopen (GPIO_61_VALUE, "w");
+    FILE *rightDigitGPIO = fopen (GPIO_44_VALUE, "w");
 
     // If an error happens, turn on every segment and finish thread
     if (leftDigitGPIO == NULL || rightDigitGPIO == NULL){
-        writeI2cReg(i2cFileDesc, REG_OUTA, 0xFF); 
-        writeI2cReg(i2cFileDesc, REG_OUTB, 0xFF); 
+        writeI2cReg (i2cFileDesc, REG_OUTA, 0xFF); 
+        writeI2cReg (i2cFileDesc, REG_OUTB, 0xFF); 
         return NULL;
     }
 
     // turn off both displays
-    int charWrittenRight = fprintf(rightDigitGPIO, "%d", 0);
-    int charWrittenLeft = fprintf(leftDigitGPIO, "%d", 0);
+    int charWrittenRight = fprintf (rightDigitGPIO, "%d", 0);
+    int charWrittenLeft = fprintf (leftDigitGPIO, "%d", 0);
     rewind(rightDigitGPIO);
     rewind(leftDigitGPIO);
 
     if (charWrittenRight <= 0 || charWrittenLeft <= 0){
-        writeI2cReg(i2cFileDesc, REG_OUTA, 0xFF); 
-        writeI2cReg(i2cFileDesc, REG_OUTB, 0xFF); 
+        writeI2cReg (i2cFileDesc, REG_OUTA, 0xFF); 
+        writeI2cReg (i2cFileDesc, REG_OUTB, 0xFF); 
         return NULL;
     }
 
@@ -164,133 +178,132 @@ static void* displayLoop (void* empty)
 
     while (running){
         // turn off both displays
-        fprintf(rightDigitGPIO, "%d", 0);
-        fprintf(leftDigitGPIO, "%d", 0);
-        rewind(rightDigitGPIO);
-        rewind(leftDigitGPIO);
+        fprintf (rightDigitGPIO, "%d", 0);
+        fprintf (leftDigitGPIO, "%d", 0);
+        rewind (rightDigitGPIO);
+        rewind (leftDigitGPIO);
 
         // drive I2C GPIO extener to dispaly pattern for left digit.
-        writeI2cReg(i2cFileDesc, REG_OUTA, digits[leftDigit].OUTA); 
-        writeI2cReg(i2cFileDesc, REG_OUTB, digits[leftDigit].OUTB); 
+        writeI2cReg (i2cFileDesc, REG_OUTA, digits[leftDigit].OUTA); 
+        writeI2cReg (i2cFileDesc, REG_OUTB, digits[leftDigit].OUTB); 
 
         // turn on left digit
-        fprintf(leftDigitGPIO, "%d", 1);
-        rewind(leftDigitGPIO);
+        fprintf (leftDigitGPIO, "%d", 1);
+        rewind (leftDigitGPIO);
         
         // wait for 5ms
-        nanosleep(&reqDelay, (struct timespec *) NULL);
+        nanosleep (&reqDelay, (struct timespec*) NULL);
 
         // turn off both displays
-        fprintf(rightDigitGPIO, "%d", 0);
-        fprintf(leftDigitGPIO, "%d", 0);
-        rewind(rightDigitGPIO);
-        rewind(leftDigitGPIO);
+        fprintf (rightDigitGPIO, "%d", 0);
+        fprintf (leftDigitGPIO, "%d", 0);
+        rewind (rightDigitGPIO);
+        rewind (leftDigitGPIO);
 
         // drive I2C GPIO extener to dispaly pattern for left digit.
-        writeI2cReg(i2cFileDesc, REG_OUTA, digits[rightDigit].OUTA); 
-        writeI2cReg(i2cFileDesc, REG_OUTB, digits[rightDigit].OUTB); 
+        writeI2cReg (i2cFileDesc, REG_OUTA, digits[rightDigit].OUTA); 
+        writeI2cReg (i2cFileDesc, REG_OUTB, digits[rightDigit].OUTB); 
 
         // turn on left digit
-        fprintf(rightDigitGPIO, "%d", 1);
-        rewind(rightDigitGPIO);
+        fprintf (rightDigitGPIO, "%d", 1);
+        rewind (rightDigitGPIO);
 
         // wait for 5ms
-        nanosleep(&reqDelay, (struct timespec *) NULL);
+        nanosleep (&reqDelay, (struct timespec*) NULL);
     }
 
     // turn off both displays when the program ends
-    fprintf(rightDigitGPIO, "%d", 0);
-    fprintf(leftDigitGPIO, "%d", 0);
-    rewind(rightDigitGPIO);
-    rewind(leftDigitGPIO);
+    fprintf (rightDigitGPIO, "%d", 0);
+    fprintf (leftDigitGPIO, "%d", 0);
+    rewind (rightDigitGPIO);
+    rewind (leftDigitGPIO);
     return NULL;
 }
 
-static int GPIO_export(int gpio_num)
+static int GPIO_export (int gpio_num)
 {
-    FILE *export = fopen(GPIO_EXPORT, "w");
+    FILE *export = fopen (GPIO_EXPORT, "w");
 
     if (export == NULL)
         return 1; 
 
-    int charWritten = fprintf(export, "%d", gpio_num);
+    int charWritten = fprintf (export, "%d", gpio_num);
     if (charWritten <= 0)
         return 1;
 
-    fclose(export);
+    fclose (export);
     return 0; 
 }
 
-// set GPIOs direction to 1
 static int GPIO_set_direction_out (void)
 {
-    FILE *direction_61 = fopen(GPIO_61_DIRECTION, "w");
-    FILE *direction_44 = fopen(GPIO_44_DIRECTION, "w");
+    FILE *direction_61 = fopen (GPIO_61_DIRECTION, "w");
+    FILE *direction_44 = fopen (GPIO_44_DIRECTION, "w");
 
     if (direction_61 == NULL || direction_44 == NULL)
         return 1;
 
-    int charWritten = fprintf(direction_61, "%s", "out");
+    int charWritten = fprintf (direction_61, "%s", "out");
     if (charWritten <= 0)
         return 1;
 
-    charWritten = fprintf(direction_44, "%s", "out");
+    charWritten = fprintf (direction_44, "%s", "out");
     if (charWritten <= 0)
         return 1;
-    fclose(direction_61);
-    fclose(direction_44);
+    fclose (direction_61);
+    fclose (direction_44);
     return 0;
 }
 
-static int getVoltage0Reading()
+static int getVoltage0Reading ()
 {
     // Open file
-    FILE *f = fopen(POT_FILE_VOLTAGE0, "r");
+    FILE *f = fopen (POT_FILE_VOLTAGE0, "r");
     if (!f) {
-        printf("ERROR: Unable to open voltage input file. Cape loaded?\n");
-        printf("try:    echo BB-ADC > /sys/devices/platform/bone_capemgr/slots\n");
+        printf ("ERROR: Unable to open voltage input file. Cape loaded?\n");
+        printf ("try:    echo BB-ADC > /sys/devices/platform/bone_capemgr/slots\n");
         return -1; 
     }
 
     // Get reading
     int a2dReading = 0;
-    int itemsRead = fscanf(f, "%d", &a2dReading);
-    if (itemsRead <= 0){
-        printf("ERROR: Unable to read values from voltage input file.\n");
+    int itemsRead = fscanf (f, "%d", &a2dReading);
+    if (itemsRead <= 0 ) {
+        printf ("ERROR: Unable to read values from voltage input file.\n");
         return -1;
     }
 
     // Close file
-    fclose(f);
+    fclose (f);
 
     return a2dReading;
 }
     
-static int initI2cBus(char* bus, int address)
+static int initI2cBus (char* bus, int address)
 {
-	int i2cFileDesc = open(bus, O_RDWR);
+	int i2cFileDesc = open (bus, O_RDWR);
 	if (i2cFileDesc < 0) {
-		printf("I2C DRV: Unable to open bus for read/write (%s)\n", bus);
-		perror("Error is:");
+		printf ("I2C DRV: Unable to open bus for read/write (%s)\n", bus);
+		perror ("Error is:");
 		return -1;
 	}
 
-	int result = ioctl(i2cFileDesc, I2C_SLAVE, address);
+	int result = ioctl (i2cFileDesc, I2C_SLAVE, address);
 	if (result < 0) {
-		perror("Unable to set I2C device to slave address.");
+		perror ("Unable to set I2C device to slave address.");
 		return -1;
 	}
 	return i2cFileDesc;
 }
 
-static int writeI2cReg(int i2cFileDesc, unsigned char regAddr, unsigned char value)
+static int writeI2cReg (int i2cFileDesc, unsigned char regAddr, unsigned char value)
 {
 	unsigned char buff[2];
 	buff[0] = regAddr;
 	buff[1] = value;
 	int res = write(i2cFileDesc, buff, 2);
 	if (res != 2) {
-		perror("Unable to write i2c register");
+		perror ("Unable to write i2c register");
 		return 1;
 	}
     return 0;
