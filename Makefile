@@ -6,7 +6,7 @@ CFLAGS = -Wall -g -std=c99 -D _POSIX_C_SOURCE=200809L -Werror -pthread
 
 all: app done
 
-test_UI_target:
+test_UI:
 	$(CC_C) $(CFLAGS) sorter.c network.c userinterface.c test_UI.c -o $(OUTDIR)/test_UI 
 	@echo "Finished building test_UI for host"
 

@@ -15,7 +15,7 @@
 #define A2D_PWL_INTERVAL 500
 
 #define GPIO_EXPORT "/sys/class/gpio/export"
-#define GPIO_LEFT_DIGIT_NUM 64
+#define GPIO_LEFT_DIGIT_NUM 61
 #define GPIO_RIGHT_DIGIT_NUM 44
 #define GPIO_61_DIRECTION "/sys/class/gpio/gpio61/direction"
 #define GPIO_44_DIRECTION "/sys/class/gpio/gpio44/direction"
@@ -226,13 +226,15 @@ static int GPIO_set_direction_out (void)
 {
     FILE *direction_61 = fopen(GPIO_61_DIRECTION, "w");
     FILE *direction_44 = fopen(GPIO_44_DIRECTION, "w");
+
     if (direction_61 == NULL || direction_44 == NULL)
         return 1;
-    int charWritten = fprintf(direction_61, "%d", 1);
+
+    int charWritten = fprintf(direction_61, "%s", "out");
     if (charWritten <= 0)
         return 1;
 
-    charWritten = fprintf(direction_44, "%d", 1);
+    charWritten = fprintf(direction_44, "%s", "out");
     if (charWritten <= 0)
         return 1;
     fclose(direction_61);
