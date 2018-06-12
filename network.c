@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <stdbool.h>
@@ -73,6 +74,7 @@ int Network_start (void)
 void Network_end()
 {
     pthread_join(recvThread, NULL);
+    close(sockfd);
 }
 
 static void* recvLoop (void* empty)
@@ -259,15 +261,23 @@ int Network_sendRequestedData (CommandType type, int *data, int dataLength, cons
                }
            }
            sprintf(&Message[index], "\n");
+           free(data);
+           data = NULL;
            break;
         }
         case GetNum:
         {
            if (data == NULL){
                pthread_cond_signal(&processingCommandCond);
-               return replyToSender("the requested size is out of range\n"); 
+               snprintf(Message,
+                       REPLYING_MSG_MAX_LEN,
+                       "the requsted num is out of boundary. the array size is %d\n",
+                       dataLength);
+               return replyToSender(Message); 
            }
            snprintf(Message, REPLYING_MSG_MAX_LEN, "Value %d: %d\n", requestedNum, data[requestedNum-1]);
+           free(data);
+           data = NULL;
            break;
         }
         case Count:

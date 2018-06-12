@@ -6,17 +6,21 @@
 #include "userinterface.h"
 #include "sorter.h"
 
+/*
 int* createArray (int length){
     int *arr = malloc(length*sizeof(int));
     for (int i = 0; i < length; i ++)
         arr[i] = i+1;
     return arr;
 }
-
+*/
 int main(){
 
-    bool flag = true;
-    int i = Network_start() || Sorter_start() || UI_start();
+    //bool flag = true;
+    int i = UI_start();
+    printf( "%d\n", i);
+    UI_end();
+    /*
     if (i == 0){
         printf("success!\n");
         while(flag){
@@ -71,5 +75,7 @@ int main(){
     UI_end();
     Sorter_end();
     Network_end();
+    */
+    
     return 0;
 }

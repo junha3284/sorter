@@ -37,9 +37,11 @@ int main(){
                     int *arr = Sorter_getArrayData(&length);
                     if (num <= 0 || num > length){
                         Network_sendRequestedData (currentType, NULL, length, NULL);
+                        arr = NULL;
                         break;
                     }
                     Network_sendRequestedData (currentType, arr, length, NULL);
+                    arr = NULL;
                     break;
                 }
                 case GetLength:
@@ -53,6 +55,7 @@ int main(){
                     int length;
                     int *arr = Sorter_getArrayData(&length);
                     Network_sendRequestedData (currentType, arr, length, NULL);
+                    arr = NULL;
                     break;
                 }
                 default:
