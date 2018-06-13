@@ -80,10 +80,10 @@ static void* sortLoop(void* empty){
         pthread_mutex_lock (&numSortedArrayLock);
         {
             numSortedArray++;
+            free (currentArray);
+            currentArray = NULL;
         }
         pthread_mutex_unlock (&numSortedArrayLock);
-        free (currentArray);
-        currentArray = NULL;
     }
     return NULL;
 }
@@ -150,6 +150,7 @@ int* Sorter_getArrayData (int *length){
     pthread_mutex_lock(&currentArrayLock);
     {    
         // for the case when sorter_getArrayData gets called even before the first random permutation array arise
+        //              and when sorter_getArrayData gets called after free() and before assigning new permutation
         if (currentArray == NULL){
             for (int i = 0 ; i < temp_currentArrSize; i++)
                 temp_arr[i] = i;
