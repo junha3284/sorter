@@ -28,7 +28,8 @@ static pthread_mutex_t numSortedArrayLock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t arrayCopyRequestedCond = PTHREAD_COND_INITIALIZER;
 
 // Function Declarations
-static void* sortLoop(void*);
+// function for thread which will keep sorting a random permutation array 
+static void* sortLoop (void*);
 static int* createPermutation (int length);
 
 // Begin/end the background thread which sorts random permutations.
@@ -39,14 +40,15 @@ int Sorter_start (void){
     numSortedArray = 0;
     running = true;
     arrayCopyRequested = false;
-    int threadCreateResult = pthread_create( &sorterThread, NULL, sortLoop, NULL);
+    int threadCreateResult = pthread_create (&sorterThread, NULL, sortLoop, NULL);
     return threadCreateResult;
 }
 
-static void* sortLoop(void* empty){
+// function for thread which will keep sorting a random permutation array 
+static void* sortLoop (void* empty) {
    
     int temp; 
-    while (running){
+    while (running) {
 
         pthread_mutex_lock (&arraySizeLock);
         {
@@ -56,7 +58,7 @@ static void* sortLoop(void* empty){
 
         pthread_mutex_lock (&currentArrayLock);
         {
-            currentArray = createPermutation(currentArraySize);
+            currentArray = createPermutation (currentArraySize);
         }
         pthread_mutex_unlock (&currentArrayLock);
         
@@ -96,7 +98,7 @@ static int* createPermutation (int length){
     int index;
     int temp;
 
-    srand(time(NULL));
+    srand (time (NULL));
     for (int i = 0; i < length; i ++){
         index = rand() % (i+1);
         temp = arr[index];
@@ -108,22 +110,27 @@ static int* createPermutation (int length){
 
 void Sorter_end (void){
     running = false;
-    pthread_join(sorterThread, NULL); 
-    free(currentArray);
+    pthread_join (sorterThread, NULL); 
+    free (currentArray);
     currentArray = NULL;
 }
 
 // Set the size the next array to sort (don't change current array)
 void Sorter_setArraySize (int newSize){
-    pthread_mutex_lock(&arraySizeLock);
-    nextArraySize = newSize;
+    pthread_mutex_lock (&arraySizeLock);
+    {
+        nextArraySize = newSize;
+    }
     pthread_mutex_unlock(&arraySizeLock);
 }
 
 // Get the size of the array currently being sorted.
 int Sorter_getArrayLength (void){
+    int temp;
     pthread_mutex_lock(&arraySizeLock);
-    int temp = currentArraySize;
+    {
+        temp = currentArraySize;
+    }
     pthread_mutex_unlock(&arraySizeLock);
     return temp;
 }
@@ -137,17 +144,17 @@ int* Sorter_getArrayData (int *length){
     arrayCopyRequested = true;
 
     int temp_currentArrSize;
-    pthread_mutex_lock(&arraySizeLock);
+    pthread_mutex_lock (&arraySizeLock);
     {
         temp_currentArrSize = currentArraySize;
     }
-    pthread_mutex_unlock(&arraySizeLock);
+    pthread_mutex_unlock (&arraySizeLock);
 
     *length = temp_currentArrSize;
 
-    int *temp_arr = malloc(temp_currentArrSize*sizeof(int));
+    int *temp_arr = malloc (temp_currentArrSize*sizeof(int));
 
-    pthread_mutex_lock(&currentArrayLock);
+    pthread_mutex_lock (&currentArrayLock);
     {    
         // for the case when sorter_getArrayData gets called even before the first random permutation array arise
         //              and when sorter_getArrayData gets called after free() and before assigning new permutation
@@ -160,22 +167,20 @@ int* Sorter_getArrayData (int *length){
                 temp_arr[i] = currentArray[i];
         }
     }
-    pthread_mutex_unlock(&currentArrayLock); 
+    pthread_mutex_unlock (&currentArrayLock); 
 
     arrayCopyRequested = false;
-    pthread_cond_signal(&arrayCopyRequestedCond);
+    pthread_cond_signal (&arrayCopyRequestedCond);
     return temp_arr;
 } 
 
 // Get the number of arrays which have finished being sorted.
 long long Sorter_getNumberArraysSorted (void){
     long long temp;
-    pthread_mutex_lock(&numSortedArrayLock);
+    pthread_mutex_lock (&numSortedArrayLock);
     {
         temp = numSortedArray;
     }
-    pthread_mutex_unlock(&numSortedArrayLock);
+    pthread_mutex_unlock (&numSortedArrayLock);
     return temp;
 }
-
-
