@@ -60,6 +60,7 @@ static int rightDigit;
 static bool running;
 static long long totalNumSortedArray;
 static int i2cFileDesc;
+static pthread_mutex_t displayNumLock = PTHREAD_MUTEX_INITIALIZER;
 
 // (index of array * 500) is corresponding A2D Reading
 // the value in that index is array size
@@ -129,8 +130,12 @@ static void* updateLoop (void* empty)
         if (numSortedArrayForLastSec >= 100)
             numSortedArrayForLastSec = 99;    
 
-        leftDigit = numSortedArrayForLastSec / 10;
-        rightDigit = numSortedArrayForLastSec % 10;
+        pthread_mutex_lock (&displayNumLock);
+        {
+            leftDigit = numSortedArrayForLastSec / 10;
+            rightDigit = numSortedArrayForLastSec % 10;
+        }
+        pthread_mutex_unlock (&displayNumLock);
         sleep(1);
     }
 
@@ -177,39 +182,47 @@ static void* displayLoop (void* empty)
 
 
     while (running){
-        // turn off both displays
-        fprintf (rightDigitGPIO, "%d", 0);
-        fprintf (leftDigitGPIO, "%d", 0);
-        rewind (rightDigitGPIO);
-        rewind (leftDigitGPIO);
+            // turn off both displays
+            fprintf (rightDigitGPIO, "%d", 0);
+            fprintf (leftDigitGPIO, "%d", 0);
+            rewind (rightDigitGPIO);
+            rewind (leftDigitGPIO);
 
-        // drive I2C GPIO extener to dispaly pattern for left digit.
-        writeI2cReg (i2cFileDesc, REG_OUTA, digits[leftDigit].OUTA); 
-        writeI2cReg (i2cFileDesc, REG_OUTB, digits[leftDigit].OUTB); 
+            pthread_mutex_lock (&displayNumLock);
+            {
+                // drive I2C GPIO extener to dispaly pattern for left digit.
+                writeI2cReg (i2cFileDesc, REG_OUTA, digits[leftDigit].OUTA); 
+                writeI2cReg (i2cFileDesc, REG_OUTB, digits[leftDigit].OUTB); 
+            }
+            pthread_mutex_unlock (&displayNumLock);
 
-        // turn on left digit
-        fprintf (leftDigitGPIO, "%d", 1);
-        rewind (leftDigitGPIO);
-        
-        // wait for 5ms
-        nanosleep (&reqDelay, (struct timespec*) NULL);
+            // turn on left digit
+            fprintf (leftDigitGPIO, "%d", 1);
+            rewind (leftDigitGPIO);
+            
+            // wait for 5ms
+            nanosleep (&reqDelay, (struct timespec*) NULL);
 
-        // turn off both displays
-        fprintf (rightDigitGPIO, "%d", 0);
-        fprintf (leftDigitGPIO, "%d", 0);
-        rewind (rightDigitGPIO);
-        rewind (leftDigitGPIO);
+            // turn off both displays
+            fprintf (rightDigitGPIO, "%d", 0);
+            fprintf (leftDigitGPIO, "%d", 0);
+            rewind (rightDigitGPIO);
+            rewind (leftDigitGPIO);
 
-        // drive I2C GPIO extener to dispaly pattern for left digit.
-        writeI2cReg (i2cFileDesc, REG_OUTA, digits[rightDigit].OUTA); 
-        writeI2cReg (i2cFileDesc, REG_OUTB, digits[rightDigit].OUTB); 
+            pthread_mutex_lock (&displayNumLock);
+            {
+                // drive I2C GPIO extener to dispaly pattern for left digit.
+                writeI2cReg (i2cFileDesc, REG_OUTA, digits[rightDigit].OUTA); 
+                writeI2cReg (i2cFileDesc, REG_OUTB, digits[rightDigit].OUTB); 
+            }
+            pthread_mutex_unlock (&displayNumLock);
 
-        // turn on left digit
-        fprintf (rightDigitGPIO, "%d", 1);
-        rewind (rightDigitGPIO);
+            // turn on left digit
+            fprintf (rightDigitGPIO, "%d", 1);
+            rewind (rightDigitGPIO);
 
-        // wait for 5ms
-        nanosleep (&reqDelay, (struct timespec*) NULL);
+            // wait for 5ms
+            nanosleep (&reqDelay, (struct timespec*) NULL);
     }
 
     // turn off both displays when the program ends
